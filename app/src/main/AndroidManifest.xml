@@ -1,10 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Visible para poder detectar si Shizuku está instalado (Android 11+) -->
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
     </queries>
+
+    <!--
+      Permisos de métricas: el estetoscopio necesita que le dejen mirar.
+      PACKAGE_USAGE_STATS es un permiso especial: no se pide con un
+      diálogo, se otorga con un interruptor en Ajustes (la app te lleva
+      hasta él) o por ADB con «appops». QUERY_ALL_PACKAGES y READ_LOGS
+      se declaran aquí; este último solo se puede conceder vía ADB.
+    -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission
+        android:name="android.permission.READ_LOGS"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:label="@string/app_name"

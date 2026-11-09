@@ -22,8 +22,20 @@ jobs:
         with:
           gradle-version: "8.12"
 
-      - name: Compilar
-        run: gradle assembleDebug --no-daemon
+      # Firma estable: el mismo keystore en cada compilación para que
+      # las actualizaciones se instalen encima de la versión anterior.
+      # Sin secrets configurados, compila igual (firma de depuración).
+      - name: Compilar (firma estable si hay secrets)
+        env:
+          SUPERVISOR_KEYSTORE_B64: ${{ secrets.SUPERVISOR_KEYSTORE }}
+          SUPERVISOR_KEYSTORE_PASSWORD: ${{ secrets.SUPERVISOR_KEYSTORE_PASSWORD }}
+          SUPERVISOR_KEY_ALIAS: ${{ secrets.SUPERVISOR_KEY_ALIAS }}
+        run: |
+          if [ -n "$SUPERVISOR_KEYSTORE_B64" ]; then
+            echo "$SUPERVISOR_KEYSTORE_B64" | base64 -d > "$HOME/supervisor-release.jks"
+            export SUPERVISOR_KEYSTORE="$HOME/supervisor-release.jks"
+          fi
+          gradle assembleDebug --no-daemon
 
       - name: Subir APK
         uses: actions/upload-artifact@v4

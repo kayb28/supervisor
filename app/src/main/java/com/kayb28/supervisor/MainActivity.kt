@@ -1,6 +1,6 @@
 /*
  * Supervisor — Fase 1: el estetoscopio.
- * Una sola pantalla, siete botones, cero adornos. Solo lee, no toca.
+ * Una sola pantalla, ocho botones, cero adornos. Solo lee, no toca.
  *
  * El canal con el sistema es el UserService oficial de Shizuku:
  * Shizuku carga ShellServiceImpl (que vive en esta misma APK) y lo
@@ -12,11 +12,13 @@ package com.kayb28.supervisor
 
 import android.app.Activity
 import android.content.ComponentName
+import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.ViewGroup
 import android.widget.Button
@@ -44,6 +46,9 @@ class MainActivity : Activity() {
     private lateinit var estado: TextView
     private lateinit var reporte: TextView
     private lateinit var botonPermiso: Button
+    private lateinit var estadoUso: TextView
+    private lateinit var botonUso: Button
+    private lateinit var estadoLogs: TextView
 
     private val userServiceArgs: Shizuku.UserServiceArgs by lazy {
         Shizuku.UserServiceArgs(
@@ -118,12 +123,43 @@ class MainActivity : Activity() {
         }
         raiz.addView(botonPermiso)
 
+        // ── Permisos de métricas ────────────────────────────────
+        // «Acceso a datos de uso» es un permiso especial: no hay
+        // diálogo, hay un interruptor en Ajustes. La app solo puede
+        // llevarte hasta la pantalla correcta; el interruptor lo
+        // mueve el dueño.
+        estadoUso = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(8f), 0, dp(2f))
+        }
+        raiz.addView(estadoUso)
+
+        botonUso = Button(this).apply {
+            text = "Otorgar «Acceso a datos de uso»"
+            setAllCaps(false)
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                } catch (_: Throwable) {
+                    // Alguna capa no tiene esta pantalla; el estado lo refleja.
+                }
+            }
+        }
+        raiz.addView(botonUso)
+
+        estadoLogs = TextView(this).apply {
+            textSize = 13f
+            setPadding(0, dp(8f), 0, dp(8f))
+        }
+        raiz.addView(estadoLogs)
+
         val botones = listOf(
             "1. ¿Quién mató mi app?" to "muertes",
             "2. Batería" to "bateria",
             "3. Despertares (alarmas)" to "alarmas",
             "4. Memoria" to "memoria",
-            "TODO: informe completo (copiárselo al asistente)" to "todo"
+            "5. Uso de apps (últimas 24 h)" to "uso",
+            "6. Informe completo (copiárselo al asistente)" to "todo"
         )
         botones.forEach { (texto, clave) ->
             raiz.addView(Button(this).apply {
@@ -142,7 +178,9 @@ class MainActivity : Activity() {
             text = "Para empezar:\n\n" +
                 "1) Abre la app Shizuku y presiona «Arrancar».\n" +
                 "2) Vuelve aquí; el estado de arriba debe decirlo todo.\n" +
-                "3) Toca cualquier botón y lee la verdad del sistema."
+                "3) Otorga «Acceso a datos de uso» (botón de arriba):\n" +
+                "   sin él, la sección 5 sale vacía.\n" +
+                "4) Toca cualquier botón y lee la verdad del sistema."
         }
         scroll.addView(reporte)
         raiz.addView(
@@ -169,6 +207,21 @@ class MainActivity : Activity() {
     }
 
     private fun actualizarEstado() {
+        // Permisos de métricas: se muestran aunque Shizuku duerma,
+        // porque el de datos de uso funciona igual sin él.
+        estadoUso.text = if (Diagnostics.tieneAccesoUso(this)) {
+            "● Acceso a datos de uso: concedido"
+        } else {
+            "● Acceso a datos de uso: FALTA — toca el botón de abajo\n" +
+                "  (Ajustes → Privacidad → Permisos especiales)"
+        }
+        estadoLogs.text = if (Diagnostics.tieneReadLogs(this)) {
+            "● Lectura del registro del sistema: concedida"
+        } else {
+            "● Lectura del registro (READ_LOGS): falta — opcional, vía ADB:\n" +
+                "  adb shell pm grant com.kayb28.supervisor android.permission.READ_LOGS"
+        }
+
         val vivo = try {
             Shizuku.pingBinder()
         } catch (_: Throwable) { false }
@@ -190,6 +243,21 @@ class MainActivity : Activity() {
     }
 
     private fun ejecutar(clave: String) {
+        // La sección de uso no necesita Shizuku: usa el permiso de
+        // datos de uso de la propia app. Funciona hasta dormido.
+        if (clave == "uso") {
+            reporte.text = "Consultando el uso de apps…"
+            executor.execute {
+                val texto = try {
+                    Diagnostics.usoDeApps(this, shell)
+                } catch (e: Throwable) {
+                    "No pude consultar el uso.\n\nCausa: ${e.message}"
+                }
+                runOnUiThread { reporte.text = texto }
+            }
+            return
+        }
+
         val svc = shell
         if (svc == null) {
             pendiente = clave
@@ -213,7 +281,7 @@ class MainActivity : Activity() {
                     "bateria" -> Diagnostics.bateria(svc)
                     "alarmas" -> Diagnostics.despertares(svc)
                     "memoria" -> Diagnostics.memoria(svc)
-                    "todo" -> Diagnostics.informeCompleto(svc)
+                    "todo" -> Diagnostics.informeCompleto(this, svc)
                     else -> "Botón sin diagnóstico asignado."
                 }
             } catch (e: Throwable) {

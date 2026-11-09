@@ -12,13 +12,36 @@ android {
         // Android 10 en adelante: cualquier tablet/teléfono moderno de la casa.
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-estetoscopio"
+        versionCode = 2
+        versionName = "0.2.0-permisos"
+    }
+
+    // Firma estable opcional: si el CI define el keystore, el APK sale
+    // siempre firmado con la misma clave y las actualizaciones se
+    // instalan encima sin desinstalar nada. Sin variables (compilado
+    // en local), se usa la firma de depuración de siempre.
+    val ksRuta = System.getenv("SUPERVISOR_KEYSTORE")
+    val ksClave = System.getenv("SUPERVISOR_KEYSTORE_PASSWORD")
+    val ksAlias = System.getenv("SUPERVISOR_KEY_ALIAS")
+
+    signingConfigs {
+        if (ksRuta != null && ksClave != null && ksAlias != null) {
+            create("estable") {
+                storeFile = file(ksRuta)
+                storePassword = ksClave
+                keyAlias = ksAlias
+                keyPassword = ksClave
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (ksRuta != null) signingConfig = signingConfigs.getByName("estable")
+        }
         release {
             isMinifyEnabled = false
+            if (ksRuta != null) signingConfig = signingConfigs.getByName("estable")
         }
     }
 
