@@ -1,0 +1,7 @@
+<resources>
+    <!-- Tema del framework, sin dependencias externas: una pieza menos que
+         pueda romperse. Fondo claro, tipografía legible, cero adornos. -->
+    <style name="Theme.Supervisor" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#0F7B3F</item>
+    </style>
+</resources>

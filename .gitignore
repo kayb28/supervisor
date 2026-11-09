@@ -1,0 +1,9 @@
+# Artefactos de compilación
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+captures/
+.kotlin/
