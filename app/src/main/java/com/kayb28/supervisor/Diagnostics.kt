@@ -408,7 +408,7 @@ object Diagnostics {
             val aperturas = HashMap<String, Int>()
 
             while (eventos.hasNextEvent()) {
-                eventos.nextEvent(ev)
+                eventos.getNextEvent(ev)
                 val pkg = ev.packageName ?: continue
                 when (ev.eventType) {
                     UsageEvents.Event.ACTIVITY_RESUMED -> {
