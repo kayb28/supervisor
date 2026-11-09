@@ -12,8 +12,8 @@ android {
         // Android 10 en adelante: cualquier tablet/teléfono moderno de la casa.
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0-permisos"
+        versionCode = 3
+        versionName = "0.3.0-tiempo-real"
     }
 
     // Firma estable opcional: si el CI define el keystore, el APK sale

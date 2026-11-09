@@ -481,6 +481,8 @@ object Diagnostics {
         appendLine()
         appendLine(seguro("permisos") { permisosDelInstrumento(context) })
         appendLine()
+        appendLine(seguro("panel en vivo") { LiveMetrics.instante(context, svc) })
+        appendLine()
         appendLine(seguro("muertes") { quienMatoMisApps(svc) })
         appendLine()
         appendLine(seguro("bateria") { bateria(svc) })

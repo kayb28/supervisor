@@ -15,8 +15,16 @@ dormido y cuánta memoria se desperdicia sola.
   la salida cruda junto al resumen. Si algo falla, la app lo dice y se sigue
   de pie. No hay nada que romper porque no hay nada que escribir.
 
-## Los seis botones
+## Los botones
 
+0. **Panel en tiempo real** — abre el monitor con pulso: CPU por
+   núcleo (uso y frecuencia de cada uno), GPU (ocupación y frecuencia,
+   Adreno vía kgsl con respaldo devfreq), RAM y swap, batería
+   instantánea (nivel, temperatura y miliamperios que fluyen ahora
+   mismo), temperaturas por zona del kernel y una **estimación de
+   salud del almacenamiento** con su fragmentación como proxy. Se
+   refresca cada 2 s, se pausa con un botón (o sola al salir de la
+   pantalla) y «Copiar muestra» lleva la lectura al portapapeles.
 1. **¿Quién mató mi app?** — lee el registro de eventos del sistema
    (`am_kill`) y el histórico persistente `exit-info`: muertes por
    el sistema, ANR y caídas desde el último arranque.
@@ -29,9 +37,9 @@ dormido y cuánta memoria se desperdicia sola.
 5. **Uso de apps (últimas 24 h)** — quién tuvo la pantalla y cuántas
    veces la abrió, con el permiso de datos de uso. No necesita
    Shizuku encendido.
-6. **Informe completo** — todo lo anterior, con fecha, modelo y
-   estado de permisos, formateado para copiarlo y llevárselo al
-   asistente para el análisis.
+6. **Informe completo** — todo lo anterior, con fecha, modelo,
+   estado de permisos y una instantánea del panel en vivo,
+   formateado para copiarlo y llevárselo al asistente para el análisis.
 
 ## Permisos que pide (y por qué)
 
@@ -66,12 +74,25 @@ que al pasar a la 0.2.0 hay que desinstalar la vieja primero. A partir
 de la firma estable (cuando el CI tenga los secrets configurados), las
 actualizaciones se instalan encima sin perder nada.
 
+## Cómo estima la salud del almacenamiento (y qué no puede saber)
+
+Sin root, el kernel no publica ni la fragmentación fina ni los contadores
+UFS de vida. El panel calcula una **estimación transparente**: parte de
+100, penaliza la ocupación del disco (cuanto más lleno, más fragmenta y
+más desgasta) y el ritmo de escritura desde el arranque (GB/día), y si el
+kernel deja leer el `health_descriptor` de UFS, usa el **dato real de vida
+del chip** (tramos de 10%) por encima de la heurística. Cada penalización
+se muestra junto a la puntuación: nada de cajas negras. La fragmentación
+exacta en f2fs no se puede medir sin root, y el panel lo dice en vez de
+inventarla.
+
 ## Requisitos
 
 - Android 10 o superior.
 - **Shizuku** instalado y despierto (botón «Arrancar») en el dispositivo,
-  para los extractos crudos privilegiados. La primera vez, Supervisor
-  pedirá su permiso con un botón.
+  para los extractos crudos privilegiados y el panel en tiempo real. La
+  primera vez, Supervisor pedirá su permiso con un botón. Si Shizuku
+  duerme, el panel muestra lo básico (RAM, disco y batería) sin quejarse.
 - **Acceso a datos de uso** concedido a Supervisor para la sección de uso
   de apps (la app te lleva a la pantalla con un botón; sin él, esa
   sección sale vacía pero el resto sigue funcionando).
@@ -84,6 +105,10 @@ actualizaciones se instalan encima sin perder nada.
   (3 = descargando), los totales de RAM, el conteo real de alarmas y el
   histórico de muertes (`exit-info`), y añade % de sueño profundo y la
   sección de uso de apps.
+- **0.3.0 — tiempo real**: panel en vivo con CPU por núcleo y
+  frecuencia, GPU, RAM y swap, batería instantánea, temperaturas y la
+  estimación de salud del almacenamiento; el informe completo gana una
+  instantánea del panel.
 - **Fase 2 — la dieta**: desactivar bloatware desde una whitelist curada de la
   comunidad, con botón de deshacer por paquete. Se construye con datos de la
   semana de observación, no a ciegas.
@@ -93,6 +118,8 @@ actualizaciones se instalan encima sin perder nada.
 ## Estructura del código (para el dueño que no programa)
 
 - `MainActivity.kt` — la pantalla y los botones. Lo que ves.
+- `PanelEnVivo.kt` — el monitor en tiempo real y su bucle de refresco.
+- `LiveMetrics.kt` — el muestreo en vivo y la traducción a español.
 - `Diagnostics.kt` — los comandos y la traducción a español. Lo que sabe.
 - `AndroidManifest.xml` — la declaración de lo que la app es y no es.
 - `.github/workflows/build.yml` — el CI que compila la APK en cada push.

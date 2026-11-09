@@ -154,6 +154,7 @@ class MainActivity : Activity() {
         raiz.addView(estadoLogs)
 
         val botones = listOf(
+            "0. Panel en tiempo real (CPU · GPU · RAM · disco)" to "panel",
             "1. ¿Quién mató mi app?" to "muertes",
             "2. Batería" to "bateria",
             "3. Despertares (alarmas)" to "alarmas",
@@ -243,6 +244,12 @@ class MainActivity : Activity() {
     }
 
     private fun ejecutar(clave: String) {
+        // El panel en vivo es otra pantalla: se abre y se muestrea solo.
+        if (clave == "panel") {
+            startActivity(Intent(this, PanelEnVivo::class.java))
+            return
+        }
+
         // La sección de uso no necesita Shizuku: usa el permiso de
         // datos de uso de la propia app. Funciona hasta dormido.
         if (clave == "uso") {

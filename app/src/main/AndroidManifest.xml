@@ -39,6 +39,12 @@
             </intent-filter>
         </activity>
 
+        <!-- El monitor con pulso: CPU, GPU, RAM y disco en vivo -->
+        <activity
+            android:name=".PanelEnVivo"
+            android:exported="false"
+            android:label="Panel en tiempo real" />
+
         <!-- Proveedor estándar de Shizuku: canal oficial hacia el sistema -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
