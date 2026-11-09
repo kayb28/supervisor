@@ -22,6 +22,11 @@ android {
         }
     }
 
+    buildFeatures {
+        // Necesario para compilar el contrato AIDL (IShellService).
+        aidl = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

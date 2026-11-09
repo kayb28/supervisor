@@ -1,27 +1,25 @@
 /*
  * Diagnostics — el cerebro del estetoscopio.
- * Cada función ejecuta comandos de solo lectura (vía Shizuku, como shell)
- * y los traduce a español claro. El extracto crudo SIEMPRE acompaña al
- * resumen: la verdad sin filtros queda a la vista del dueño.
+ * Cada función ejecuta comandos de solo lectura a través del pequeño
+ * servicio que Shizuku corre con privilegios de shell, y los traduce
+ * a español claro. El extracto crudo SIEMPRE acompaña al resumen:
+ * la verdad sin filtros queda a la vista del dueño.
  */
 package com.kayb28.supervisor
 
 import android.os.Build
-import rikka.shizuku.Shizuku
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 object Diagnostics {
 
-    /** Ejecuta un comando de solo lectura como shell vía Shizuku. */
-    fun shell(cmd: String): String {
-        val proceso = Shizuku.newProcess(arrayOf("sh", "-c", cmd), null, null)
+    /** Ejecuta un comando de solo lectura vía Shizuku. */
+    fun shell(svc: IShellService, cmd: String): String {
         val salida = try {
-            proceso.inputStream.bufferedReader().readText() +
-                proceso.errorStream.bufferedReader().readText()
-        } finally {
-            proceso.waitFor()
+            svc.exec(cmd)
+        } catch (e: Throwable) {
+            throw IllegalStateException("Shizuku se durmió (${e.message})")
         }
         return salida.trim()
     }
@@ -58,8 +56,9 @@ object Diagnostics {
     // El sistema escribe cada muerte en el registro de eventos (am_kill).
     // Este comando no mata nada: lee lo que el sistema ya escribió.
     // ────────────────────────────────────────────────────────────
-    fun quienMatoMisApps(): String {
+    fun quienMatoMisApps(svc: IShellService): String {
         val crudo = shell(
+            svc,
             "logcat -d -b events 2>/dev/null | " +
                 "grep -E 'am_kill|am_proc_died' | tail -n 300"
         )
@@ -102,8 +101,8 @@ object Diagnostics {
     // ────────────────────────────────────────────────────────────
     // 2. Batería — salud, nivel y temperatura del alma de la tablet.
     // ────────────────────────────────────────────────────────────
-    fun bateria(): String {
-        val crudo = shell("dumpsys battery 2>/dev/null")
+    fun bateria(svc: IShellService): String {
+        val crudo = shell(svc, "dumpsys battery 2>/dev/null")
 
         fun campo(rx: String): String =
             Regex(rx).find(crudo)?.groupValues?.get(1) ?: "?"
@@ -150,8 +149,8 @@ object Diagnostics {
     // ────────────────────────────────────────────────────────────
     // 3. Despertares — las alarmas que despiertan la tablet dormida.
     // ────────────────────────────────────────────────────────────
-    fun despertares(): String {
-        val crudo = shell("dumpsys alarm 2>/dev/null | head -n 250")
+    fun despertares(svc: IShellService): String {
+        val crudo = shell(svc, "dumpsys alarm 2>/dev/null | head -n 250")
         val proximas = Regex("""when=\d+""").findAll(crudo).count()
 
         return buildString {
@@ -174,8 +173,8 @@ object Diagnostics {
     // ────────────────────────────────────────────────────────────
     // 4. Memoria — cuánta RAM tiene, cuánta usa, cuánta desperdicia.
     // ────────────────────────────────────────────────────────────
-    fun memoria(): String {
-        val crudo = shell("dumpsys meminfo 2>/dev/null | head -n 40")
+    fun memoria(svc: IShellService): String {
+        val crudo = shell(svc, "dumpsys meminfo 2>/dev/null | head -n 40")
 
         fun kb(rx: String): Long? =
             Regex(rx).find(crudo)?.groupValues?.get(1)
@@ -188,6 +187,7 @@ object Diagnostics {
 
         val procesos = try {
             shell(
+                svc,
                 """ps -A -o NAME 2>/dev/null | """ +
                     """grep -cE '^(com\.miui|com\.xiaomi|miui|vendor\.xiaomi)'"""
             )
@@ -221,7 +221,7 @@ object Diagnostics {
     // ────────────────────────────────────────────────────────────
     // TODO: el informe que el dueño copia y le lleva al asistente.
     // ────────────────────────────────────────────────────────────
-    fun informeCompleto(): String = buildString {
+    fun informeCompleto(svc: IShellService): String = buildString {
         val fecha = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         appendLine("╔══════════════════════════════════════╗")
         appendLine("   INFORME DEL SUPERVISOR — Fase 1")
@@ -229,13 +229,13 @@ object Diagnostics {
         appendLine("   ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}")
         appendLine("╚══════════════════════════════════════╝")
         appendLine()
-        appendLine(seguro("muertes") { quienMatoMisApps() })
+        appendLine(seguro("muertes") { quienMatoMisApps(svc) })
         appendLine()
-        appendLine(seguro("bateria") { bateria() })
+        appendLine(seguro("bateria") { bateria(svc) })
         appendLine()
-        appendLine(seguro("alarmas") { despertares() })
+        appendLine(seguro("alarmas") { despertares(svc) })
         appendLine()
-        appendLine(seguro("memoria") { memoria() })
+        appendLine(seguro("memoria") { memoria(svc) })
         appendLine()
         appendLine("— Fin del informe. Cópialo completo y pégaselo")
         appendLine("  al asistente para la semana de observación.")

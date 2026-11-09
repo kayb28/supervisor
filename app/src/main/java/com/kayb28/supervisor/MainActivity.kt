@@ -2,14 +2,21 @@
  * Supervisor — Fase 1: el estetoscopio.
  * Una sola pantalla, siete botones, cero adornos. Solo lee, no toca.
  *
+ * El canal con el sistema es el UserService oficial de Shizuku:
+ * Shizuku carga ShellServiceImpl (que vive en esta misma APK) y lo
+ * corre con privilegios de shell. La app solo recoge lecturas.
+ *
  * Repo: github.com/kayb28/supervisor
  */
 package com.kayb28.supervisor
 
 import android.app.Activity
+import android.content.ComponentName
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.os.Bundle
+import android.os.IBinder
 import android.util.TypedValue
 import android.view.ViewGroup
 import android.widget.Button
@@ -27,9 +34,40 @@ class MainActivity : Activity() {
 
     private val executor = Executors.newSingleThreadExecutor()
 
+    /** El servicio del lado Shizuku; nulo mientras no haya conexión. */
+    @Volatile
+    private var shell: IShellService? = null
+
+    /** Diagnóstico pendiente mientras el servicio se conecta. */
+    private var pendiente: String? = null
+
     private lateinit var estado: TextView
     private lateinit var reporte: TextView
     private lateinit var botonPermiso: Button
+
+    private val userServiceArgs: Shizuku.UserServiceArgs by lazy {
+        Shizuku.UserServiceArgs(
+            ComponentName(packageName, ShellServiceImpl::class.java.name)
+        )
+            .processNameSuffix("shell")
+            .version(1)
+            .daemon(false)
+    }
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            shell = IShellService.Stub.asInterface(binder)
+            runOnUiThread {
+                val clave = pendiente
+                pendiente = null
+                if (clave != null) ejecutar(clave) else actualizarEstado()
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            shell = null
+        }
+    }
 
     private val permisoListener: Shizuku.OnRequestPermissionResultListener =
         Shizuku.OnRequestPermissionResultListener { _, _ ->
@@ -125,6 +163,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         Shizuku.removeRequestPermissionResultListener(permisoListener)
+        shell = null
         executor.shutdown()
         super.onDestroy()
     }
@@ -151,22 +190,36 @@ class MainActivity : Activity() {
     }
 
     private fun ejecutar(clave: String) {
+        val svc = shell
+        if (svc == null) {
+            pendiente = clave
+            reporte.text = "Conectando con el sistema…"
+            try {
+                Shizuku.bindUserService(userServiceArgs, serviceConnection)
+            } catch (e: Throwable) {
+                pendiente = null
+                reporte.text = "No pude conectar con Shizuku.\n\n" +
+                    "Causa: ${e.message}\n\n" +
+                    "¿Está Shizuku despierto y el permiso concedido?"
+            }
+            return
+        }
+
         reporte.text = "Consultando al sistema… (unos segundos)"
         executor.execute {
             val texto = try {
                 when (clave) {
-                    "muertes" -> Diagnostics.quienMatoMisApps()
-                    "bateria" -> Diagnostics.bateria()
-                    "alarmas" -> Diagnostics.despertares()
-                    "memoria" -> Diagnostics.memoria()
-                    "todo" -> Diagnostics.informeCompleto()
+                    "muertes" -> Diagnostics.quienMatoMisApps(svc)
+                    "bateria" -> Diagnostics.bateria(svc)
+                    "alarmas" -> Diagnostics.despertares(svc)
+                    "memoria" -> Diagnostics.memoria(svc)
+                    "todo" -> Diagnostics.informeCompleto(svc)
                     else -> "Botón sin diagnóstico asignado."
                 }
             } catch (e: Throwable) {
                 "No pude consultar al sistema.\n\n" +
-                    "Causa probable: ${e.message}\n\n" +
-                    "¿Está Shizuku despierto? Ábrelo, presiona «Arrancar»\n" +
-                    "y vuelve a intentarlo."
+                    "Causa: ${e.message}\n\n" +
+                    "Shizuku puede haberse dormido; despiértalo y reintenta."
             }
             runOnUiThread { reporte.text = texto }
         }
