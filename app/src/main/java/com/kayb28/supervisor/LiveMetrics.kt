@@ -817,10 +817,12 @@ echo @@FIN
                 ruta.endsWith("/temp") -> valor.toIntOrNull()?.let { temps[num] = it }
             }
         }
-        return tipos.keys.mapNotNull { num ->
-            val t = temps[num] ?: return@mapNotNull null
-            if (t in -30000..150000) tipos[num] to (t / 1000.0) else null
+        val out = ArrayList<Pair<String, Double>>()
+        for ((num, tipo) in tipos) {
+            val t = temps[num]
+            if (t != null && t in -30000..150000) out.add(tipo to (t / 1000.0))
         }
+        return out
     }
 
     private fun valorPorSufijo(sec: String?, sufijo: String): Long? {
@@ -853,8 +855,9 @@ echo @@FIN
             @Suppress("DEPRECATION")
             val m = DisplayMetrics()
             @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealMetrics(m)
-            Triple(m.widthPixels, m.heightPixels, m.refreshRate)
+            val disp = wm.defaultDisplay
+            disp.getRealMetrics(m)
+            Triple(m.widthPixels, m.heightPixels, disp.refreshRate)
         }
     } catch (_: Throwable) { null }
 
